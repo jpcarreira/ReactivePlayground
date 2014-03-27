@@ -8,6 +8,7 @@
 
 #import "RWViewController.h"
 #import "RWDummySignInService.h"
+#import <ReactiveCocoa/ReactiveCocoa.h>
 
 @interface RWViewController ()
 
@@ -24,7 +25,9 @@
 
 @implementation RWViewController
 
-- (void)viewDidLoad {
+
+- (void)viewDidLoad
+{
   [super viewDidLoad];
   
   [self updateUIState];
@@ -37,17 +40,75 @@
   
   // initially hide the failure message
   self.signInFailureText.hidden = YES;
+    
+
 }
 
-- (BOOL)isValidUsername:(NSString *)username {
+
+// basic examples using ReactiveCocoa, call this at the end of viewDidLoad
+-(void)reactiveExamples
+{
+    // example 1: logs any char entered in the text field
+        [self.usernameTextField.rac_textSignal subscribeNext:^(id x){
+            NSLog(@"%@", x);
+        }];
+    
+    
+    // example 2: only logs text longer than 3 chars
+        [[self.usernameTextField.rac_textSignal filter:^BOOL(id value){
+            NSString *text = value;
+            return text.length > 3;
+        }] subscribeNext:^(id x){
+            NSLog(@"%@", x);
+        }];
+    
+    
+    // example 3: same as example 2 but showing all pipelines
+        RACSignal *userNameSourceSignal = self.usernameTextField.rac_textSignal;
+    
+        RACSignal *filteredUserName = [userNameSourceSignal filter:^BOOL(id value){
+            NSString *text = value;
+            return text.length > 3;
+        }];
+    
+        [filteredUserName subscribeNext:^(id x){
+           NSLog(@"%@", x);
+        }];
+    
+    
+    // same as example 2 but without the id to NSString cast
+       [[self.usernameTextField.rac_textSignal filter:^BOOL(NSString *text){
+           return text.length > 3;
+        }] subscribeNext:^(id x){
+            NSLog(@"%@", x);
+        }];
+    
+    
+    // example 4: using map function to transform a NSString in NSNumber
+        [[[self.usernameTextField.rac_textSignal map:^id(NSString *text){
+            return @(text.length);
+        }] filter:^BOOL(NSNumber *length){
+            return [length integerValue] > 3;
+        }] subscribeNext:^(id x){
+            NSLog(@"%@", x);
+        }];
+}
+
+
+- (BOOL)isValidUsername:(NSString *)username
+{
   return username.length > 3;
 }
 
-- (BOOL)isValidPassword:(NSString *)password {
+
+- (BOOL)isValidPassword:(NSString *)password
+{
   return password.length > 3;
 }
 
-- (IBAction)signInButtonTouched:(id)sender {
+
+- (IBAction)signInButtonTouched:(id)sender
+{
   // disable all UI controls
   self.signInButton.enabled = NO;
   self.signInFailureText.hidden = YES;
@@ -67,18 +128,23 @@
 
 // updates the enabled state and style of the text fields based on whether the current username
 // and password combo is valid
-- (void)updateUIState {
+- (void)updateUIState
+{
   self.usernameTextField.backgroundColor = self.usernameIsValid ? [UIColor clearColor] : [UIColor yellowColor];
   self.passwordTextField.backgroundColor = self.passwordIsValid ? [UIColor clearColor] : [UIColor yellowColor];
   self.signInButton.enabled = self.usernameIsValid && self.passwordIsValid;
 }
 
-- (void)usernameTextFieldChanged {
+
+- (void)usernameTextFieldChanged
+{
   self.usernameIsValid = [self isValidUsername:self.usernameTextField.text];
   [self updateUIState];
 }
 
-- (void)passwordTextFieldChanged {
+
+- (void)passwordTextFieldChanged
+{
   self.passwordIsValid = [self isValidPassword:self.passwordTextField.text];
   [self updateUIState];
 }
