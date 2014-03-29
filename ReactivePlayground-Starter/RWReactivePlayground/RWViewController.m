@@ -41,6 +41,10 @@
   // initially hide the failure message
   self.signInFailureText.hidden = YES;
     
+    
+    // changing the text field background colors using 2 separate pipelines
+    [self updateTextFieldBackgroundColorUsingRAC];
+    
 
 }
 
@@ -95,6 +99,59 @@
 }
 
 
+// this method creates two separate pipelines (one for the username textfield and other for the password
+// textfield) so that they change from orange to clear color once the number of chars in each textfield
+// is greater than 3
+-(void)updateTextFieldBackgroundColorUsingRAC
+{
+    // step 1: create a couple of signals that indicate whether the username and password text fields are valid
+    
+    // RAC signal to check if username is valid
+    RACSignal *validUserNameSignal = [self.usernameTextField.rac_textSignal map:^id(NSString *text){
+        return @([self isValidUsername:text]);
+    }];
+    
+    // RAC signal to check if password is valid
+    RACSignal *validPasswordSignal = [self.passwordTextField.rac_textSignal map:^id(NSString *text) {
+        return @([self isValidPassword:text]);
+    }];
+    
+    // in the code above we apply a map to transform the rac_textSignal from each text field, producing an
+    // output that is a boolean value boxed as a NSNumber
+    
+    
+    // step 2: transforming the signals so that they provide a background color to the text fields
+    // (we assign the output of validPasswordSignal to the background color property of the text field
+    // (password text field will remain red while number of chars is less than 3)
+    
+    //    [[validPasswordSignal map:^id(NSNumber *passwordValid) {
+    //        return [passwordValid boolValue] ? [UIColor clearColor] : [UIColor redColor];
+    //    }]
+    //    subscribeNext:^(UIColor *color){
+    //        self.passwordTextField.backgroundColor = color;
+    //    }];
+    
+    
+    // step 2 (alternative): using RAC macro to assign the output of a signal to the property of an object
+    RAC(self.passwordTextField, backgroundColor) =
+    [validPasswordSignal map:^id(NSNumber *passwordValid){
+        return [passwordValid boolValue] ? [UIColor clearColor] : [UIColor orangeColor];
+    }];
+    
+    RAC(self.usernameTextField, backgroundColor) =
+    [validUserNameSignal map:^id(NSNumber *usernameValid){
+        return [usernameValid boolValue] ? [UIColor clearColor] : [UIColor orangeColor];
+    }];
+    
+//
+//      this pipeline starts with a signal and ends up changing a property of the textfield
+//
+//      rac_textSignal --(NSString)--> map --(BOOL)--> map --(UIColor)--> backgroundColor
+//    
+
+}
+
+
 - (BOOL)isValidUsername:(NSString *)username
 {
   return username.length > 3;
@@ -130,8 +187,8 @@
 // and password combo is valid
 - (void)updateUIState
 {
-  self.usernameTextField.backgroundColor = self.usernameIsValid ? [UIColor clearColor] : [UIColor yellowColor];
-  self.passwordTextField.backgroundColor = self.passwordIsValid ? [UIColor clearColor] : [UIColor yellowColor];
+//  self.usernameTextField.backgroundColor = self.usernameIsValid ? [UIColor clearColor] : [UIColor yellowColor];
+//  self.passwordTextField.backgroundColor = self.passwordIsValid ? [UIColor clearColor] : [UIColor yellowColor];
   self.signInButton.enabled = self.usernameIsValid && self.passwordIsValid;
 }
 
