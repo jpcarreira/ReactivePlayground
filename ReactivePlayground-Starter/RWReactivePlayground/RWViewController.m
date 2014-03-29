@@ -39,6 +39,9 @@
     
     // enabling the sign in button using RAC
     [self enableSignInButtonUsingRAC];
+    
+    // signing in using RAC
+    [self signInUsingRAC];
 }
 
 
@@ -145,6 +148,7 @@
 }
 
 
+// this method enables the sign-in button combining RAC signals
 -(void)enableSignInButtonUsingRAC
 {
     // RAC signal to check if username is valid
@@ -173,6 +177,37 @@
 }
 
 
+// this method allows a sign-in using RAC signal for control events
+-(void)signInUsingRAC
+{
+    // we use the map function to transform the button touch signal into the sign-in signal
+    // and the subscriber simply logs the result
+    //
+    // we must use flattenMap: instead of map:
+    //
+    // if we use map: what happens is that the rac_signalForControlEvents emits a next event
+    // (with the source UIButton as its event data) when we tap the button; the map step creates and returns
+    // the sign-in signal with means the pipeline steps receives a RACSignal; this corresponds to "signal of
+    // signals", that is, an outer signal that contains a inner signal; we could subscribe to the inner signal
+    // within the outter signal but this could result is a mess so we use flattenMap:, which maps the button
+    // touch event to a sign-in signal as before but also flattens it by sending the events from the inner
+    // signal to the outer signal
+    
+    [[[self.signInButton rac_signalForControlEvents:UIControlEventTouchUpInside]
+     flattenMap:^id(id x){
+         return [self signInSignal];
+     }]
+     subscribeNext:^(NSNumber *signedIn){
+         BOOL success = [signedIn boolValue];
+         self.signInFailureText.hidden = success;
+         if(success)
+         {
+             [self performSegueWithIdentifier:@"signInSuccess" sender:self];
+         }
+    }];
+}
+
+
 - (BOOL)isValidUsername:(NSString *)username
 {
   return username.length > 3;
@@ -185,22 +220,33 @@
 }
 
 
-- (IBAction)signInButtonTouched:(id)sender
+// returns a RAC signal corresponding to the sign-in
+-(RACSignal *)signInSignal
 {
-  // disable all UI controls
-  self.signInButton.enabled = NO;
-  self.signInFailureText.hidden = YES;
-  
-  // sign in
-  [self.signInService signInWithUsername:self.usernameTextField.text
-                            password:self.passwordTextField.text
-                            complete:^(BOOL success) {
-                              self.signInButton.enabled = YES;
-                              self.signInFailureText.hidden = success;
-                              if (success) {
-                                [self performSegueWithIdentifier:@"signInSuccess" sender:self];
-                              }
-                            }];
+    // we create a signal and the block that describes this signal is a single argument and is passed
+    // to this method; when the signal has a subscriber the code within the block executes
+    //
+    // the block is passed a single subscriber that adopts the RACSubscriber protocol which has methods
+    // we invoke in order to emit events
+    //
+    // we can send any number of next events terminated with either an error or complete event but, in this
+    // case we send a single next event to indicate whether the sign-in was successfull or not, followed
+    // by a complete event
+    //
+    // the return type is a RACDisposable that allows to perform any cleanup work that might be required
+    // when a subscription is cancelled or trashed; has this signal has no clean-up requirements we simply
+    // return nil
+    //
+    // this sums up an assynchronous API call in a signal
+    return [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber){
+       [self.signInService signInWithUsername:self.usernameTextField.text
+                                     password:self.passwordTextField.text
+                                     complete:^(BOOL success){
+                                         [subscriber sendNext:@(success)];
+                                         [subscriber sendCompleted];
+                                     }];
+        return nil;
+    }];
 }
 
 @end
