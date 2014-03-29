@@ -17,8 +17,6 @@
 @property (weak, nonatomic) IBOutlet UIButton *signInButton;
 @property (weak, nonatomic) IBOutlet UILabel *signInFailureText;
 
-@property (nonatomic) BOOL passwordIsValid;
-@property (nonatomic) BOOL usernameIsValid;
 @property (strong, nonatomic) RWDummySignInService *signInService;
 
 @end
@@ -30,13 +28,7 @@
 {
   [super viewDidLoad];
   
-  [self updateUIState];
-  
   self.signInService = [RWDummySignInService new];
-  
-  // handle text changes for both text fields
-  [self.usernameTextField addTarget:self action:@selector(usernameTextFieldChanged) forControlEvents:UIControlEventEditingChanged];
-  [self.passwordTextField addTarget:self action:@selector(passwordTextFieldChanged) forControlEvents:UIControlEventEditingChanged];
   
   // initially hide the failure message
   self.signInFailureText.hidden = YES;
@@ -45,7 +37,8 @@
     // changing the text field background colors using 2 separate pipelines
     [self updateTextFieldBackgroundColorUsingRAC];
     
-
+    // enabling the sign in button using RAC
+    [self enableSignInButtonUsingRAC];
 }
 
 
@@ -152,6 +145,34 @@
 }
 
 
+-(void)enableSignInButtonUsingRAC
+{
+    // RAC signal to check if username is valid
+    RACSignal *validUserNameSignal = [self.usernameTextField.rac_textSignal map:^id(NSString *text){
+        return @([self isValidUsername:text]);
+    }];
+    
+    // RAC signal to check if password is valid
+    RACSignal *validPasswordSignal = [self.passwordTextField.rac_textSignal map:^id(NSString *text) {
+        return @([self isValidPassword:text]);
+    }];
+    
+    // using combineLastest:reduce: to combine the latest values emitted by validUserNameSignal and
+    // validPasswordSignal into a new signal
+    // (each time either of these signals emit a new value the reduce block will execute and the
+    // value it returns is sent as the next value of the combined signal)
+    RACSignal *signUpActiveSignal =
+        [RACSignal combineLatest:@[validUserNameSignal, validPasswordSignal]
+            reduce:^id(NSNumber *usernameValid, NSNumber *passwordValid){
+                return @([usernameValid boolValue] && [passwordValid boolValue]);
+                }];
+    
+    [signUpActiveSignal subscribeNext:^(NSNumber *signupActive){
+        self.signInButton.enabled = [signupActive boolValue];
+    }];
+}
+
+
 - (BOOL)isValidUsername:(NSString *)username
 {
   return username.length > 3;
@@ -180,30 +201,6 @@
                                 [self performSegueWithIdentifier:@"signInSuccess" sender:self];
                               }
                             }];
-}
-
-
-// updates the enabled state and style of the text fields based on whether the current username
-// and password combo is valid
-- (void)updateUIState
-{
-//  self.usernameTextField.backgroundColor = self.usernameIsValid ? [UIColor clearColor] : [UIColor yellowColor];
-//  self.passwordTextField.backgroundColor = self.passwordIsValid ? [UIColor clearColor] : [UIColor yellowColor];
-  self.signInButton.enabled = self.usernameIsValid && self.passwordIsValid;
-}
-
-
-- (void)usernameTextFieldChanged
-{
-  self.usernameIsValid = [self isValidUsername:self.usernameTextField.text];
-  [self updateUIState];
-}
-
-
-- (void)passwordTextFieldChanged
-{
-  self.passwordIsValid = [self isValidPassword:self.passwordTextField.text];
-  [self updateUIState];
 }
 
 @end
