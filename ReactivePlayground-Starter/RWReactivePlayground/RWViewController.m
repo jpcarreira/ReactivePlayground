@@ -192,12 +192,21 @@
     // within the outter signal but this could result is a mess so we use flattenMap:, which maps the button
     // touch event to a sign-in signal as before but also flattens it by sending the events from the inner
     // signal to the outer signal
+    //
+    // we add side-effects using doNext:
+    // (the doNext: block does not return a value because it's a side-effect, i.e., it leaves the event
+    // itlself unchanged)
     
-    [[[self.signInButton rac_signalForControlEvents:UIControlEventTouchUpInside]
+    [[[[self.signInButton rac_signalForControlEvents:UIControlEventTouchUpInside]
+       doNext:^(id x){
+          self.signInButton.enabled = NO;
+          self.signInFailureText.hidden = YES;
+      }]
      flattenMap:^id(id x){
          return [self signInSignal];
      }]
      subscribeNext:^(NSNumber *signedIn){
+         self.signInButton.enabled = YES;
          BOOL success = [signedIn boolValue];
          self.signInFailureText.hidden = success;
          if(success)
